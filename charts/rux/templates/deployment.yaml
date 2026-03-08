@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rux.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rux.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "rux.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "rux.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "rux.serviceAccountName" . }}
+      containers:
+        - name: gateway
+          image: "{{ .Values.image.repository }}:{{ include "rux.imageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.gateway.workingDir }}
+          workingDir: {{ .Values.gateway.workingDir }}
+          {{- end }}
+          command:
+            {{- toYaml .Values.gateway.command | nindent 12 }}
+          ports:
+            - containerPort: 8080
+              name: s3
+              protocol: TCP
+          env:
+            - name: RUX_LOG_LEVEL
+              value: {{ .Values.gateway.logLevel }}
+            - name: RUX_PORT
+              value: "8080"
+            - name: RUX_SCYLLA_CONTACT_POINTS
+              value: {{ .Values.gateway.scylla.contactPoints | quote }}
+            - name: RUX_SCYLLA_LOCAL_DC
+              value: {{ .Values.gateway.scylla.localDc | quote }}
+            - name: RUX_DEFAULT_CONSISTENCY
+              value: {{ .Values.gateway.defaultConsistency | quote }}
+          {{- with .Values.gateway.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.gateway.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.gateway.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

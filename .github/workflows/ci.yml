@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-checks:
+    name: Rust Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: rust-checks
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run unit tests (atomic)
+        run: cargo test --lib --bins --all-features -- --test-threads=1
+
+  scylla-integration:
+    name: Scylla Integration
+    runs-on: ubuntu-latest
+    needs: rust-checks
+
+    services:
+      scylla:
+        image: scylladb/scylla:6.2
+        ports:
+          - 9042:9042
+        options: >-
+          --health-cmd "nodetool status"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+
+    env:
+      RUX_SCYLLA_CONTACT_POINTS: 127.0.0.1
+      RUX_SCYLLA_LOCAL_DC: datacenter1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Wait for Scylla CQL port
+        run: |
+          for i in {1..90}; do
+            if timeout 1 bash -c '</dev/tcp/127.0.0.1/9042' 2>/dev/null; then
+              echo "Scylla is ready on port 9042"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Scylla did not become ready in time"
+          exit 1
+
+      - name: Enforce integration test layout
+        run: |
+          if [ ! -d tests/integration ]; then
+            echo "No tests/integration directory found; skipping integration tests."
+            exit 0
+          fi
+
+          disallowed="$(find tests -type f -name '*.rs' ! -path 'tests/integration/*' 2>/dev/null)"
+          if [ -n "$disallowed" ]; then
+            echo "Integration tests must live under tests/integration. Found:"
+            echo "$disallowed"
+            exit 1
+          fi
+
+      - name: Run integration tests
+        run: |
+          if [ ! -d tests/integration ]; then
+            echo "No tests/integration directory found; skipping integration tests."
+            exit 0
+          fi
+
+          mapfile -t targets < <(find tests/integration -maxdepth 1 -type f -name '*.rs' -exec basename {} .rs \; | sort)
+          if [ "${#targets[@]}" -eq 0 ]; then
+            echo "No direct integration test targets in tests/integration; skipping."
+            exit 0
+          fi
+
+          for target in "${targets[@]}"; do
+            echo "Running integration test target: $target"
+            cargo test --test "$target" --all-features
+          done

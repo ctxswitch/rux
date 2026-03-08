@@ -1,0 +1,11 @@
+apiVersion: v2
+name: rux
+description: Globally distributed, S3-compatible object storage built on ScyllaDB
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: ctxswitch
+    url: https://github.com/ctxswitch
+sources:
+  - https://github.com/ctxswitch/rux

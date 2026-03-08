@@ -1,0 +1,67 @@
+replicaCount: 1
+
+image:
+  repository: rust
+  tag: latest
+  pullPolicy: IfNotPresent
+
+gateway:
+  command:
+    - sleep
+    - infinity
+  workingDir: /usr/src/app
+  securityContext:
+    runAsUser: 0
+    runAsGroup: 0
+    runAsNonRoot: false
+  livenessProbe: {}
+  readinessProbe: {}
+  scylla:
+    contactPoints: rux-scylla-client.scylla.svc.cluster.local
+    localDc: datacenter1
+
+service:
+  type: NodePort
+  s3NodePort: 30080
+
+scylladb:
+  enabled: true
+  namespace: scylla
+  version: "6.2"
+  agentVersion: latest
+  developerMode: true
+  datacenter:
+    name: datacenter1
+    racks:
+      - name: a
+        members: 3
+        storage:
+          capacity: 10Gi
+          storageClassName: local-path
+        resources:
+          requests:
+            cpu: 1
+            memory: 2Gi
+          limits:
+            cpu: 1
+            memory: 2Gi
+
+nodeSelector:
+  kubernetes.io/hostname: k3d-rux-agent-0
+
+extraVolumes:
+  - name: app
+    hostPath:
+      path: /app
+  - name: cargo-cache
+    emptyDir: {}
+  - name: target-cache
+    emptyDir: {}
+
+extraVolumeMounts:
+  - name: app
+    mountPath: /usr/src/app
+  - name: cargo-cache
+    mountPath: /usr/local/cargo/registry
+  - name: target-cache
+    mountPath: /usr/src/app/target

@@ -1,0 +1,94 @@
+replicaCount: 1
+
+image:
+  repository: ctxsh/rux
+  tag: ""  # defaults to appVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+gateway:
+  command:
+    - /usr/local/bin/rux
+  workingDir: ""
+  logLevel: info
+  defaultConsistency: eventual
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 15
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  scylla:
+    contactPoints: scylla-client.scylla.svc.cluster.local
+    localDc: datacenter1
+
+service:
+  type: ClusterIP
+  s3Port: 80
+  s3NodePort: null
+
+ingress:
+  enabled: false
+  className: ""
+  host: s3.example.com
+  virtualHosted: false    # enable *.s3.example.com wildcard routing
+  annotations: {}
+  tls: []
+  # - hosts:
+  #     - s3.example.com
+  #     - "*.s3.example.com"
+  #   secretName: rux-tls
+
+scylladb:
+  enabled: false
+  namespace: scylla
+  version: "6.2"
+  agentVersion: latest
+  developerMode: false
+  datacenter:
+    name: datacenter1
+    racks:
+      - name: a
+        members: 3
+        storage:
+          capacity: 100Gi
+          storageClassName: ""
+        resources:
+          requests:
+            cpu: 4
+            memory: 16Gi
+          limits:
+            cpu: 4
+            memory: 16Gi
+
+resources: {}
+
+extraVolumes: []
+extraVolumeMounts: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

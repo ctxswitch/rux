@@ -1,0 +1,39 @@
+{{- if .Values.scylladb.enabled }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.scylladb.namespace }}
+  labels:
+    {{- include "rux.labels" . | nindent 4 }}
+---
+apiVersion: scylla.scylladb.com/v1
+kind: ScyllaCluster
+metadata:
+  name: {{ include "rux.fullname" . }}-scylla
+  namespace: {{ .Values.scylladb.namespace }}
+  labels:
+    {{- include "rux.labels" . | nindent 4 }}
+spec:
+  agentVersion: {{ .Values.scylladb.agentVersion }}
+  version: {{ .Values.scylladb.version | quote }}
+  developerMode: {{ .Values.scylladb.developerMode }}
+  datacenter:
+    name: {{ .Values.scylladb.datacenter.name }}
+    racks:
+      {{- range .Values.scylladb.datacenter.racks }}
+      - name: {{ .name }}
+        members: {{ .members }}
+        storage:
+          capacity: {{ .storage.capacity }}
+          {{- if .storage.storageClassName }}
+          storageClassName: {{ .storage.storageClassName }}
+          {{- end }}
+        resources:
+          requests:
+            cpu: {{ .resources.requests.cpu }}
+            memory: {{ .resources.requests.memory }}
+          limits:
+            cpu: {{ .resources.limits.cpu }}
+            memory: {{ .resources.limits.memory }}
+      {{- end }}
+{{- end }}
